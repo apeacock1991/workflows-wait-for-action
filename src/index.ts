@@ -1,70 +1,41 @@
-// <docs-tag name="full-workflow-example">
 import { WorkflowEntrypoint, WorkflowStep, WorkflowEvent } from 'cloudflare:workers';
+import { DurableObjectExample } from './do';
+export { DurableObjectExample };
 
-type Env = {
-	// Add your bindings here, e.g. Workers KV, D1, Workers AI, etc.
+export type Env = {
 	MY_WORKFLOW: Workflow;
+  WAIT_EXAMPLE_KV: KVNamespace;
+  DURABLE_OBJECT_EXAMPLE: DurableObjectNamespace<DurableObjectExample>;
 };
 
 // User-defined params passed to your workflow
-type Params = {
-	email: string;
-	metadata: Record<string, string>;
-};
+type Params = {};
 
-// <docs-tag name="workflow-entrypoint">
 export class MyWorkflow extends WorkflowEntrypoint<Env, Params> {
 	async run(event: WorkflowEvent<Params>, step: WorkflowStep) {
-		// Can access bindings on `this.env`
-		// Can access params on `event.payload`
+		await step.do('pause', async () => {
+      // Persist some state that we can use to determine if the workflow should resume
+      this.env.WAIT_EXAMPLE_KV.put('complete', 'false');
+      
+      // Get the Durable Object instance that will be used to wait for the KV update
+      // and trigger a resume of the workflow
+      const id = this.env.DURABLE_OBJECT_EXAMPLE.idFromName(`workflow-${event.instanceId}`);
+      const durableObjectExample = this.env.DURABLE_OBJECT_EXAMPLE.get(id);
+      await durableObjectExample.waitForKvUpdate(event.instanceId, 10);
 
-		const files = await step.do('my first step', async () => {
-			// Fetch a list of files from $SOME_SERVICE
-			return {
-				inputParams: event,
-				files: [
-					'doc_7392_rev3.pdf',
-					'report_x29_final.pdf',
-					'memo_2024_05_12.pdf',
-					'file_089_update.pdf',
-					'proj_alpha_v2.pdf',
-					'data_analysis_q2.pdf',
-					'notes_meeting_52.pdf',
-					'summary_fy24_draft.pdf',
-				],
-			};
+      // Pause the workflow
+			const workflow = await this.env.MY_WORKFLOW.get(event.instanceId);
+			await workflow.pause();
 		});
 
-		const apiResponse = await step.do('some other step', async () => {
-			let resp = await fetch('https://api.cloudflare.com/client/v4/ips');
-			return await resp.json<any>();
+    // This will be run once the Durable Object resumes the workflow
+		await step.do('finish', async () => {
+			console.log('finish');
 		});
-
-		await step.sleep('wait on something', '1 minute');
-
-		await step.do(
-			'make a call to write that could maybe, just might, fail',
-			// Define a retry strategy
-			{
-				retries: {
-					limit: 5,
-					delay: '5 second',
-					backoff: 'exponential',
-				},
-				timeout: '15 minutes',
-			},
-			async () => {
-				// Do stuff here, with access to the state from our previous steps
-				if (Math.random() > 0.5) {
-					throw new Error('API call to $STORAGE_SYSTEM failed');
-				}
-			},
-		);
 	}
 }
-// </docs-tag name="workflow-entrypoint">
 
-// <docs-tag name="workflows-fetch-handler">
+// This is just here to start a Workflow instance
 export default {
 	async fetch(req: Request, env: Env): Promise<Response> {
 		let url = new URL(req.url);
@@ -90,5 +61,3 @@ export default {
 		});
 	},
 };
-// </docs-tag name="workflows-fetch-handler">
-// </docs-tag name="full-workflow-example">
