@@ -3,7 +3,7 @@ import { DurableObjectExample } from './do';
 export { DurableObjectExample };
 
 export type Env = {
-	MY_WORKFLOW: Workflow;
+  MY_WORKFLOW: Workflow;
   WAIT_EXAMPLE_KV: KVNamespace;
   DURABLE_OBJECT_EXAMPLE: DurableObjectNamespace<DurableObjectExample>;
 };
