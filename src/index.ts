@@ -12,8 +12,8 @@ export type Env = {
 type Params = {};
 
 export class MyWorkflow extends WorkflowEntrypoint<Env, Params> {
-	async run(event: WorkflowEvent<Params>, step: WorkflowStep) {
-		await step.do('pause', async () => {
+  async run(event: WorkflowEvent<Params>, step: WorkflowStep) {
+    await step.do('pause', async () => {
       // Persist some state that we can use to determine if the workflow should resume
       this.env.WAIT_EXAMPLE_KV.put('complete', 'false');
       
@@ -24,40 +24,42 @@ export class MyWorkflow extends WorkflowEntrypoint<Env, Params> {
       await durableObjectExample.waitForKvUpdate(event.instanceId, 10);
 
       // Pause the workflow
-			const workflow = await this.env.MY_WORKFLOW.get(event.instanceId);
-			await workflow.pause();
-		});
+      const workflow = await this.env.MY_WORKFLOW.get(event.instanceId);
+      await workflow.pause();
+    });
 
     // This will be run once the Durable Object resumes the workflow
-		await step.do('finish', async () => {
-			console.log('finish');
-		});
-	}
+    await step.do('finish', async () => {
+      console.log('finish');
+    });
+  }
 }
 
 // This is just here to start a Workflow instance
 export default {
-	async fetch(req: Request, env: Env): Promise<Response> {
-		let url = new URL(req.url);
+  async fetch(req: Request, env: Env): Promise<Response> {
+    let url = new URL(req.url);
 
-		if (url.pathname.startsWith('/favicon')) {
-			return Response.json({}, { status: 404 });
-		}
+    if (url.pathname.startsWith('/favicon')) {
+      return Response.json({}, { status: 404 });
+    }
 
-		// Get the status of an existing instance, if provided
-		let id = url.searchParams.get('instanceId');
-		if (id) {
-			let instance = await env.MY_WORKFLOW.get(id);
-			return Response.json({
-				status: await instance.status(),
-			});
-		}
+    // Get the status of an existing instance, if provided
+    let id = url.searchParams.get('instanceId');
+	  
+    if (id) {
+      let instance = await env.MY_WORKFLOW.get(id);
+      return Response.json({
+        status: await instance.status(),
+      });
+    }
 
-		// Spawn a new instance and return the ID and status
-		let instance = await env.MY_WORKFLOW.create();
-		return Response.json({
-			id: instance.id,
-			details: await instance.status(),
-		});
-	},
+    // Spawn a new instance and return the ID and status
+    let instance = await env.MY_WORKFLOW.create();
+	  
+    return Response.json({
+      id: instance.id,
+      details: await instance.status(),
+    });
+  },
 };
